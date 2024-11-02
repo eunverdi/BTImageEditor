@@ -8,7 +8,7 @@
 
 import UIKit
 
-class MosaicPath {
+final class MosaicPath {
     let path: UIBezierPath
     let ratio: CGFloat
     let startPoint: CGPoint

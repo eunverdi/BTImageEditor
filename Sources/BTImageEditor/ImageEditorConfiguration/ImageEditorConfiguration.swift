@@ -7,7 +7,7 @@
 
 import UIKit
 
-public class ImageEditorConfiguration {
+final class ImageEditorConfiguration {
     
     @MainActor static let shared = ImageEditorConfiguration()
     

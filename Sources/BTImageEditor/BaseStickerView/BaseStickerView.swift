@@ -11,8 +11,8 @@ import AVKit
 @MainActor
 protocol StickerViewDelegate: AnyObject {
     func stickerBeginOperation(_ sticker: UIView)
-    func stickerOnOperation(_ sticker: UIView, panGes: UIPanGestureRecognizer)
-    func stickerEndOperation(_ sticker: UIView, panGes: UIPanGestureRecognizer)
+    func stickerOnOperation(_ sticker: UIView, panGesture: UIPanGestureRecognizer)
+    func stickerEndOperation(_ sticker: UIView, panGesture: UIPanGestureRecognizer)
     func stickerDidTap(_ sticker: UIView)
     func sticker(_ textSticker: TextStickerView, editText text: String)
 }
@@ -39,33 +39,39 @@ class BaseStickerView<T>: UIView, UIGestureRecognizerDelegate {
         case left = 270
     }
     
-    var firstLayout = true
+    private var firstLayout = true
+    private var originTransform: CGAffineTransform = .identity
+    private var timer: Timer?
+    private(set) var totalTranslationPoint: CGPoint = .zero
+    private var gesTranslationPoint: CGPoint = .zero
+    private var originalLocation: CGPoint = .zero
+    private(set) var gesRotation: CGFloat = 0
+    private(set) var gesScale: CGFloat = 1
+    private var maxGesScale: CGFloat = 15
+    private var onOperation = false
+    var originFrame: CGRect
+    var gesIsEnabled = true
     let originScale: CGFloat
     let originAngle: CGFloat
-    var originTransform: CGAffineTransform = .identity
-    var timer: Timer?
-    var totalTranslationPoint: CGPoint = .zero
-    var gesTranslationPoint: CGPoint = .zero
-    var originalLocation: CGPoint = .zero
-    var gesRotation: CGFloat = 0
-    var gesScale: CGFloat = 1
-    var maxGesScale: CGFloat = 15
-    var onOperation = false
-    var gesIsEnabled = true
-    var originFrame: CGRect
     
-    lazy var tapGes = UITapGestureRecognizer(target: self, action: #selector(tapAction(_:)))
+    private(set) lazy var tapGesture = UITapGestureRecognizer(target: self, action: #selector(tapAction(_:)))
     
-    lazy var pinchGesture: UIPinchGestureRecognizer = {
-        let pinch = UIPinchGestureRecognizer(target: self, action: #selector(pinchAction(_:)))
-        pinch.delegate = self
-        return pinch
+    private(set) lazy var pinchGesture: UIPinchGestureRecognizer = {
+        let pinchGesture = UIPinchGestureRecognizer(target: self, action: #selector(pinchAction(_:)))
+        pinchGesture.delegate = self
+        return pinchGesture
     }()
     
-    lazy var panGes: UIPanGestureRecognizer = {
-        let pan = UIPanGestureRecognizer(target: self, action: #selector(panAction(_:)))
-        pan.delegate = self
-        return pan
+    private(set) lazy var panGesture: UIPanGestureRecognizer = {
+        let panGesture = UIPanGestureRecognizer(target: self, action: #selector(panAction(_:)))
+        panGesture.delegate = self
+        return panGesture
+    }()
+    
+    private(set) lazy var rotationGesture: UIRotationGestureRecognizer = {
+        let rotationGesture = UIRotationGestureRecognizer(target: self, action: #selector(rotationAction(_:)))
+        rotationGesture.delegate = self
+        return rotationGesture
     }()
     
     var state: T {
@@ -96,16 +102,7 @@ class BaseStickerView<T>: UIView, UIGestureRecognizerDelegate {
         self.totalTranslationPoint = totalTranslationPoint
         
         hideBorder()
-        
-        addGestureRecognizer(tapGes)
-        addGestureRecognizer(pinchGesture)
-        
-        let rotationGesture = UIRotationGestureRecognizer(target: self, action: #selector(rotationAction(_:)))
-        rotationGesture.delegate = self
-        addGestureRecognizer(rotationGesture)
-        
-        addGestureRecognizer(panGes)
-        tapGes.require(toFail: panGes)
+        setupGestures()
     }
     
     @available(*, unavailable)
@@ -240,7 +237,7 @@ class BaseStickerView<T>: UIView, UIGestureRecognizerDelegate {
             delegate?.stickerBeginOperation(self)
         } else if !isOn, onOperation {
             onOperation = false
-            delegate?.stickerEndOperation(self, panGes: panGes)
+            delegate?.stickerEndOperation(self, panGesture: panGesture)
         }
     }
     
@@ -262,7 +259,7 @@ class BaseStickerView<T>: UIView, UIGestureRecognizerDelegate {
         transform = transform.rotated(by: gesRotation)
         self.transform = transform
         
-        delegate?.stickerOnOperation(self, panGes: panGes)
+        delegate?.stickerOnOperation(self, panGesture: panGesture)
     }
     
     @objc private func hideBorder() {
@@ -272,6 +269,14 @@ class BaseStickerView<T>: UIView, UIGestureRecognizerDelegate {
     // MARK: UIGestureRecognizerDelegate
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
         return true
+    }
+    
+    private func setupGestures() {
+        addGestureRecognizer(tapGesture)
+        addGestureRecognizer(pinchGesture)
+        addGestureRecognizer(rotationGesture)
+        addGestureRecognizer(panGesture)
+        tapGesture.require(toFail: panGesture)
     }
 }
 

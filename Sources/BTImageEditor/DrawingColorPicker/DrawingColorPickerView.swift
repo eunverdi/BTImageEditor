@@ -95,19 +95,16 @@ final class DrawingColorPickerView: UIView {
         bringSubviewToFront(pinView)
         
         NSLayoutConstraint.activate([
-            // Pen Button
             penButton.heightAnchor.constraint(equalToConstant: 40),
             penButton.widthAnchor.constraint(equalToConstant: 40),
             penButton.centerXAnchor.constraint(equalTo: centerXAnchor),
             penButton.topAnchor.constraint(equalTo: topAnchor),
-            
-            //Pin View
+   
             pinView.heightAnchor.constraint(equalToConstant: 34),
             pinView.widthAnchor.constraint(equalToConstant: 34),
             pinView.centerXAnchor.constraint(equalTo: centerXAnchor),
             pinView.topAnchor.constraint(equalTo: topAnchor),
             
-            // Picker View
             pickerView.topAnchor.constraint(equalTo: penButton.bottomAnchor, constant: 4),
             pickerView.widthAnchor.constraint(equalToConstant: frame.width - 32),
             pickerView.centerXAnchor.constraint(equalTo: centerXAnchor),

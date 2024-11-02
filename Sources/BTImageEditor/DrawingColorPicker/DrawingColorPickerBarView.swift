@@ -45,7 +45,7 @@ final class DrawingColorPickerBarView: UIView {
     func addColorLayer() {
         var colors = [CGColor]()
         
-        for r in 0..<255 + 30 + 30 { // Black and White
+        for r in 0..<255 + 30 + 30 {
             if r < 30 {
                 colors.append(UIColor.black.cgColor)
             } else if r < 60 {
@@ -88,14 +88,11 @@ final class DrawingColorPickerBarView: UIView {
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let touch = touches.first else { return }
         
-        // Color
         let position = touch.location(in: self)
         let locationPoint = (position.y) / frame.height
         handleColorPick(point: locationPoint)
         
-        // Stroke Width Min 3 : Max 25
         var strokePosition = -position.x / 10
-        
         guard strokePosition > 1 else { return }
         
         if strokePosition < 3 {

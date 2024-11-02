@@ -7,12 +7,12 @@
 
 import UIKit
 
-class DrawPath {
-    let pathColor: UIColor
-    let path: UIBezierPath
-    let ratio: CGFloat
-    let shapeLayer: CAShapeLayer
-    
+final class DrawPath {
+    private let pathColor: UIColor
+    private let path: UIBezierPath
+    private let ratio: CGFloat
+    private let shapeLayer: CAShapeLayer
+
     init(pathColor: UIColor, pathWidth: CGFloat, ratio: CGFloat, startPoint: CGPoint) {
         self.pathColor = pathColor
         path = UIBezierPath()

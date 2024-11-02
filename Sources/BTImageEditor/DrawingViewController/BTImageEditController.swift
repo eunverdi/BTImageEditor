@@ -41,7 +41,6 @@ public final class BTImageEditController: UIViewController {
     
     public var editFinishBlock: ((UIImage) -> Void)?
     
-    private var panGes: UIPanGestureRecognizer!
     private var originalFrame: CGRect = .zero
     private var originalImage: UIImage!
     private var editImage: UIImage!
@@ -56,11 +55,7 @@ public final class BTImageEditController: UIViewController {
     }
     
     private var safeAreaInsetBottom: CGFloat {
-        if #available(iOS 11.0, *) {
-            return view.safeAreaInsets.bottom
-        } else {
-            return 0
-        }
+        view.safeAreaInsets.bottom
     }
     
     public override var supportedInterfaceOrientations: UIInterfaceOrientationMask {
@@ -74,74 +69,9 @@ public final class BTImageEditController: UIViewController {
     private var isDrawingActive: Bool = true {
         didSet {
             if isDrawingActive {
-                stickersContainer.subviews.forEach { view in
-                    (view as? StickerViewAdditional)?.gesIsEnabled = false
-                }
-                
-                stackView.alpha = 1
-                stackView.isUserInteractionEnabled = true
-                
-                backButton.alpha = 0
-                backButton.isUserInteractionEnabled = false
-                
-                doneButton.alpha = 1
-                doneButton.isUserInteractionEnabled = true
-                
-                UIView.animate(withDuration: 0.5) {
-                    self.emojiButton.transform = .identity
-                    self.emojiButton.alpha = 0
-                    self.emojiButton.isUserInteractionEnabled = false
-                    
-                    self.textButton.transform = .identity
-                    self.textButton.alpha = 0
-                    self.textButton.isUserInteractionEnabled = false
-                    
-                    self.undoButton.transform = .identity
-                    self.undoButton.isUserInteractionEnabled = false
-                    
-                    if !self.undoDrawPaths.isEmpty || !self.mosaicPaths.isEmpty {
-                        self.undoButton.alpha = 1
-                    } else {
-                        self.undoButton.alpha = 0
-                    }
-                }
-                penButtonInteractionEnabled = false
-                self.colorPickerView.penButton.backgroundColor = currentDrawColor
-                
+                drawingActiveState()
             } else {
-                stickersContainer.subviews.forEach { view in
-                    (view as? StickerViewAdditional)?.gesIsEnabled = true
-                }
-                
-                stackView.alpha = 0
-                stackView.isUserInteractionEnabled = false
-                
-                backButton.alpha = 1
-                backButton.isUserInteractionEnabled = true
-                
-                doneButton.alpha = 0
-                doneButton.isUserInteractionEnabled = false
-                
-                UIView.animate(withDuration: 0.5) {
-                    self.emojiButton.transform = self.emojiButton.transform.translatedBy(x: -self.emojiButton.frame.width, y: 0)
-                    self.emojiButton.alpha = 1
-                    self.emojiButton.isUserInteractionEnabled = true
-                    
-                    self.textButton.transform = self.textButton.transform.translatedBy(x: -self.textButton.frame.width, y: 0)
-                    self.textButton.alpha = 1
-                    self.textButton.isUserInteractionEnabled = true
-                    
-                    self.undoButton.transform = self.undoButton.transform.translatedBy(x: (-self.undoButton.frame.width) + (-self.textButton.frame.width) + (-self.emojiButton.frame.width) + 5, y: 0)
-                    self.undoButton.isUserInteractionEnabled = true
-                    
-                    if !self.undoDrawPaths.isEmpty || !self.mosaicPaths.isEmpty {
-                        self.undoButton.alpha = 1
-                    } else {
-                        self.undoButton.alpha = 0
-                    }
-                }
-                penButtonInteractionEnabled = true
-                self.colorPickerView.penButton.backgroundColor = .white
+                drawingNotActiveState()
             }
         }
     }
@@ -166,7 +96,7 @@ public final class BTImageEditController: UIViewController {
         return view
     }()
     
-    private lazy var trashImageView = UIImageView(image: UIImage(named: "trash-dark-smal-icon"), highlightedImage: UIImage(named: "trash"))
+    private lazy var trashImageView = UIImageView(image: UIImage(systemName: "trash"), highlightedImage: UIImage(systemName: "trash.fill"))
     
     private lazy var containerView: UIView = {
         let view = UIView()
@@ -244,7 +174,7 @@ public final class BTImageEditController: UIViewController {
         button.layer.cornerRadius = 20
         button.backgroundColor = UIColor(red: 0.10, green: 0.10, blue: 0.11, alpha: 1.00)
         button.translatesAutoresizingMaskIntoConstraints = false
-        button.setImage(UIImage(named: "add-text-icon"), for: .normal)
+        button.setImage(UIImage(systemName: "character.cursor.ibeam"), for: .normal)
         button.imageEdgeInsets = UIEdgeInsets(top: 5, left: 5, bottom: 5, right: 5)
         button.tintColor = UIColor.white
         button.addTarget(self, action: #selector(addTextButtonClick), for: .touchUpInside)
@@ -383,6 +313,16 @@ public final class BTImageEditController: UIViewController {
         return view
     }()
     
+    private let tapGesture: UITapGestureRecognizer = {
+        let tapGesture = UITapGestureRecognizer()
+        tapGesture.cancelsTouchesInView = false
+        tapGesture.addTarget(self, action: #selector(dismissKeyboard))
+        
+        return tapGesture
+    }()
+    
+    private var panGesture: UIPanGestureRecognizer!
+    
     public init(originalImage: UIImage?) {
         self.originalImage = originalImage
         self.editImage = originalImage
@@ -397,11 +337,109 @@ public final class BTImageEditController: UIViewController {
     
     public override func viewDidLoad() {
         super.viewDidLoad()
-  
-        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(dismissKeyboard))
-        tapGesture.cancelsTouchesInView = false
-        view.addGestureRecognizer(tapGesture)
+        prepareViewDidLoad()
+    }
+    
+    public override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        mainScrollView.frame = view.bounds
+        resetContainerViewFrame()
         
+        trashView.frame = CGRect(x: (view.frame.width - trashViewSize.width) / 2, y: view.frame.height - trashViewSize.height - 40, width: trashViewSize.width, height: trashViewSize.height)
+        trashImageView.frame = CGRect(x: (trashViewSize.width - 25) / 2, y: 15, width: 25, height: 25)
+    }
+    
+    public override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(true)
+    }
+    
+    private func setToolView(show: Bool) {
+        UIView.animate(withDuration: 0.25) {
+            show ? self.setToolsAlphaToOne() : self.setToolsAlphaToZero()
+        }
+    }
+}
+
+extension BTImageEditController {
+    private func prepareViewDidLoad() {
+        setupMosaicView()
+        configureSubviews()
+        setupStackView()
+        setupButtons()
+        configureSuperview()
+        setupConstraints()
+        setupColorPickerView()
+        setupTrashView()
+        setupStickers()
+        setupTools()
+        setupPanGesture()
+    }
+}
+
+extension BTImageEditController {
+    private func setupPanGesture() {
+        panGesture = UIPanGestureRecognizer(target: self, action: #selector(drawAction(_ :)))
+        panGesture.maximumNumberOfTouches = 1
+        panGesture.delegate = self
+        view.addGestureRecognizer(panGesture)
+        mainScrollView.panGestureRecognizer.require(toFail: panGesture)
+    }
+}
+
+extension BTImageEditController {
+    private func setupTools() {
+        tools.append(backButton)
+        tools.append(doneButton)
+        tools.append(emojiButton)
+        tools.append(undoButton)
+        tools.append(textButton)
+        tools.append(inputContainerView)
+        tools.append(clearAllButton)
+    }
+}
+
+extension BTImageEditController {
+    private func setupStickers() {
+        stickers.forEach { view in
+            self.stickersContainer.addSubview(view)
+            if let textView = view as? TextStickerView {
+                textView.frame = textView.originFrame
+                self.configTextSticker(textView)
+            } else if let imageView = view as? ImageStickerView {
+                imageView.frame = imageView.originFrame
+                self.configImageSticker(imageView)
+            }
+        }
+    }
+}
+
+extension BTImageEditController {
+    private func setupTrashView() {
+        view.addSubview(trashView)
+        trashView.addSubview(trashImageView)
+        
+        let trashViewLabel = UILabel(frame: CGRect(x: 0, y: trashViewSize.height - 34, width: trashViewSize.width, height: 34))
+        trashViewLabel.font = UIFont.systemFont(ofSize: 12)
+        trashViewLabel.textAlignment = .center
+        trashViewLabel.textColor = .white
+        trashViewLabel.text = "Drag to trash"
+        trashViewLabel.numberOfLines = 2
+        trashViewLabel.lineBreakMode = .byCharWrapping
+        trashView.addSubview(trashViewLabel)
+    }
+}
+
+extension BTImageEditController {
+    private func setupColorPickerView() {
+        colorPickerView.layoutView()
+        colorPickerView.pickerView.alpha = 1
+        colorPickerView.penButton.backgroundColor = currentDrawColor
+        colorPickerView.penButton.tintColor = .white
+    }
+}
+
+extension BTImageEditController {
+    private func setupMosaicView() {
         mosaicImage = editImage.mosaicImage()
         
         mosaicImageLayer = CALayer()
@@ -416,9 +454,11 @@ public final class BTImageEditController: UIViewController {
         imageView.layer.addSublayer(mosaicImageLayerMaskLayer!)
         
         mosaicImageLayer?.mask = mosaicImageLayerMaskLayer
-        
-        view.backgroundColor = .black
-        
+    }
+}
+
+extension BTImageEditController {
+    private func configureSubviews() {
         view.addSubview(mainScrollView)
         view.addSubview(doneButton)
         view.addSubview(backButton)
@@ -428,12 +468,6 @@ public final class BTImageEditController: UIViewController {
         view.addSubview(clearAllButton)
         view.addSubview(colorPickerView)
         view.addSubview(stackView)
-        
-        stackView.addArrangedSubview(normalThickness)
-        stackView.addArrangedSubview(halfThickness)
-        stackView.addArrangedSubview(veryThickness)
-        stackView.addArrangedSubview(mosaicButton)
-        
         view.addSubview(inputContainerView)
         
         containerView.addSubview(imageView)
@@ -441,6 +475,87 @@ public final class BTImageEditController: UIViewController {
         containerView.addSubview(stickersContainer)
         mainScrollView.addSubview(containerView)
         
+    }
+}
+
+extension BTImageEditController {
+    private func setupStackView() {
+        stackView.addArrangedSubview(normalThickness)
+        stackView.addArrangedSubview(halfThickness)
+        stackView.addArrangedSubview(veryThickness)
+        stackView.addArrangedSubview(mosaicButton)
+    }
+}
+
+extension BTImageEditController {
+    private func setupConstraints() {
+        NSLayoutConstraint.activate([
+            stackView.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 20),
+            stackView.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -20),
+            stackView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
+            stackView.heightAnchor.constraint(equalToConstant: 90),
+            
+            doneButton.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 25),
+            doneButton.topAnchor.constraint(equalTo: view.topAnchor, constant: 50),
+            doneButton.widthAnchor.constraint(equalToConstant: 40),
+            
+            backButton.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 15),
+            backButton.topAnchor.constraint(equalTo: view.topAnchor, constant: 50),
+            
+            undoButton.widthAnchor.constraint(equalToConstant: 40),
+            undoButton.heightAnchor.constraint(equalToConstant: 40),
+            undoButton.topAnchor.constraint(equalTo: view.topAnchor, constant: 50),
+            undoButton.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -65),
+            
+            textButton.widthAnchor.constraint(equalToConstant: 40),
+            textButton.heightAnchor.constraint(equalToConstant: 40),
+            textButton.topAnchor.constraint(equalTo: view.topAnchor, constant: 50),
+            textButton.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -90),
+            
+            emojiButton.widthAnchor.constraint(equalToConstant: 40),
+            emojiButton.heightAnchor.constraint(equalToConstant: 40),
+            emojiButton.topAnchor.constraint(equalTo: view.topAnchor, constant: 50),
+            emojiButton.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -40),
+            
+            clearAllButton.topAnchor.constraint(equalTo: view.topAnchor, constant: 50),
+            clearAllButton.leadingAnchor.constraint(equalTo: doneButton.trailingAnchor, constant: 20),
+            
+            normalThickness.heightAnchor.constraint(equalToConstant: 40),
+            normalThickness.widthAnchor.constraint(equalToConstant: 80),
+            
+            halfThickness.heightAnchor.constraint(equalToConstant: 40),
+            halfThickness.widthAnchor.constraint(equalToConstant: 80),
+            
+            veryThickness.heightAnchor.constraint(equalToConstant: 40),
+            veryThickness.widthAnchor.constraint(equalToConstant: 80),
+            
+            mosaicButton.heightAnchor.constraint(equalToConstant: 40),
+            mosaicButton.widthAnchor.constraint(equalToConstant: 80),
+            
+            inputContainerView.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor),
+            inputContainerView.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor),
+            inputContainerBottomConstraint,
+            
+            colorPickerView.topAnchor.constraint(equalTo: view.topAnchor, constant: 50),
+            colorPickerView.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -15),
+            colorPickerView.heightAnchor.constraint(equalToConstant: 240),
+            colorPickerView.widthAnchor.constraint(equalToConstant: 50)
+        ])
+    }
+}
+
+extension BTImageEditController {
+    private func configureSuperview() {
+        view.backgroundColor = .black
+        view.addGestureRecognizer(tapGesture)
+        view.bringSubviewToFront(colorPickerView)
+        hidesBottomBarWhenPushed = true
+        modalPresentationCapturesStatusBarAppearance = true
+    }
+}
+
+extension BTImageEditController {
+    private func setupButtons() {
         //Cancel Button Initial Configuration
         backButton.alpha = 0.0
         backButton.isUserInteractionEnabled = false
@@ -464,321 +579,252 @@ public final class BTImageEditController: UIViewController {
         //Clear All Button Initial Configuration
         clearAllButton.alpha = 0.0
         clearAllButton.isUserInteractionEnabled = false
-        
-        NSLayoutConstraint.activate([
-            stackView.leadingAnchor.constraint(equalTo: self.view.safeAreaLayoutGuide.leadingAnchor, constant: 20),
-            stackView.trailingAnchor.constraint(equalTo: self.view.safeAreaLayoutGuide.trailingAnchor, constant: -20),
-            stackView.bottomAnchor.constraint(equalTo: self.view.safeAreaLayoutGuide.bottomAnchor),
-            stackView.heightAnchor.constraint(equalToConstant: 90),
-            
-            doneButton.leadingAnchor.constraint(equalTo: self.view.safeAreaLayoutGuide.leadingAnchor, constant: 25),
-            doneButton.topAnchor.constraint(equalTo: self.view.topAnchor, constant: 50),
-            doneButton.widthAnchor.constraint(equalToConstant: 40),
-            
-            backButton.leadingAnchor.constraint(equalTo: self.view.safeAreaLayoutGuide.leadingAnchor, constant: 15),
-            backButton.topAnchor.constraint(equalTo: self.view.topAnchor, constant: 50),
-            
-            undoButton.widthAnchor.constraint(equalToConstant: 40),
-            undoButton.heightAnchor.constraint(equalToConstant: 40),
-            undoButton.topAnchor.constraint(equalTo: self.view.topAnchor, constant: 50),
-            undoButton.trailingAnchor.constraint(equalTo: self.view.safeAreaLayoutGuide.trailingAnchor, constant: -65),
-            
-            textButton.widthAnchor.constraint(equalToConstant: 40),
-            textButton.heightAnchor.constraint(equalToConstant: 40),
-            textButton.topAnchor.constraint(equalTo: self.view.topAnchor, constant: 50),
-            textButton.trailingAnchor.constraint(equalTo: self.view.safeAreaLayoutGuide.trailingAnchor, constant: -90),
-            
-            emojiButton.widthAnchor.constraint(equalToConstant: 40),
-            emojiButton.heightAnchor.constraint(equalToConstant: 40),
-            emojiButton.topAnchor.constraint(equalTo: self.view.topAnchor, constant: 50),
-            emojiButton.trailingAnchor.constraint(equalTo: self.view.safeAreaLayoutGuide.trailingAnchor, constant: -40),
-            
-            clearAllButton.topAnchor.constraint(equalTo: self.view.topAnchor, constant: 50),
-            clearAllButton.leadingAnchor.constraint(equalTo: doneButton.trailingAnchor, constant: 20),
-            
-            normalThickness.heightAnchor.constraint(equalToConstant: 40),
-            normalThickness.widthAnchor.constraint(equalToConstant: 80),
-            
-            halfThickness.heightAnchor.constraint(equalToConstant: 40),
-            halfThickness.widthAnchor.constraint(equalToConstant: 80),
-            
-            veryThickness.heightAnchor.constraint(equalToConstant: 40),
-            veryThickness.widthAnchor.constraint(equalToConstant: 80),
-            
-            mosaicButton.heightAnchor.constraint(equalToConstant: 40),
-            mosaicButton.widthAnchor.constraint(equalToConstant: 80),
-            
-            inputContainerView.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor),
-            inputContainerView.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor),
-            inputContainerBottomConstraint,
-        
-            colorPickerView.topAnchor.constraint(equalTo: self.view.topAnchor, constant: 50),
-            colorPickerView.trailingAnchor.constraint(equalTo: self.view.safeAreaLayoutGuide.trailingAnchor, constant: -15),
-            colorPickerView.heightAnchor.constraint(equalToConstant: 240),
-            colorPickerView.widthAnchor.constraint(equalToConstant: 50)
-        ])
-        
-        view.bringSubviewToFront(colorPickerView)
-        colorPickerView.layoutView()
-        colorPickerView.pickerView.alpha = 1
-        
-        self.hidesBottomBarWhenPushed = true
-        self.modalPresentationCapturesStatusBarAppearance = true
-        
-        panGes = UIPanGestureRecognizer(target: self, action: #selector(drawAction(_ :)))
-        panGes.maximumNumberOfTouches = 1
-        panGes.delegate = self
-        view.addGestureRecognizer(panGes)
-        mainScrollView.panGestureRecognizer.require(toFail: panGes)
-        
-        stickers.forEach { view in
-            self.stickersContainer.addSubview(view)
-            if let textView = view as? TextStickerView {
-                textView.frame = textView.originFrame
-                self.configTextSticker(textView)
-            } else if let imageView = view as? ImageStickerView {
-                imageView.frame = imageView.originFrame
-                self.configImageSticker(imageView)
-            }
-        }
-        
-        view.addSubview(trashView)
-        trashView.addSubview(trashImageView)
-        
-        let trashViewLabel = UILabel(frame: CGRect(x: 0, y: trashViewSize.height - 34, width: trashViewSize.width, height: 34))
-        trashViewLabel.font = UIFont.systemFont(ofSize: 12)
-        trashViewLabel.textAlignment = .center
-        trashViewLabel.textColor = .white
-        trashViewLabel.text = "Drag to trash"
-        trashViewLabel.numberOfLines = 2
-        trashViewLabel.lineBreakMode = .byCharWrapping
-        trashView.addSubview(trashViewLabel)
-        
-        tools.append(backButton)
-        tools.append(doneButton)
-        tools.append(emojiButton)
-        tools.append(undoButton)
-        tools.append(textButton)
-        tools.append(inputContainerView)
-        tools.append(clearAllButton)
-        
-        self.colorPickerView.penButton.backgroundColor = currentDrawColor
-        self.colorPickerView.penButton.tintColor = .white
     }
-    
-    private func configTextSticker(_ textSticker: TextStickerView) {
-        textSticker.delegate = self
-        mainScrollView.pinchGestureRecognizer?.require(toFail: textSticker.pinchGesture)
-        mainScrollView.panGestureRecognizer.require(toFail: textSticker.panGes)
-        panGes.require(toFail: textSticker.panGes)
-    }
-    
-    private func configImageSticker(_ imageSticker: ImageStickerView) {
-        imageSticker.delegate = self
-        mainScrollView.pinchGestureRecognizer?.require(toFail: imageSticker.pinchGesture)
-        mainScrollView.panGestureRecognizer.require(toFail: imageSticker.panGes)
-        panGes.require(toFail: imageSticker.panGes)
-    }
-    
-    @objc private func thicknessButtonPressed(_ sender: UIButton) {
-        if sender.isSelected { return }
-        
-        let buttons: [UIButton] = [normalThickness, halfThickness, veryThickness, mosaicButton]
-        UIView.animate(withDuration: 0.4) {
-            for button in buttons {
-                button.isSelected = button == sender
-                button.layer.backgroundColor = button.isSelected ? UIColor(white: 0.7, alpha: 0.5).cgColor : UIColor.clear.cgColor
-            }
-        }
-    }
-    
-    @objc private func setEditTool() {
-        self.selectedTool = .mosaic
-    }
-    
-    @objc private func clearAllButtonAction() {
-        mosaicPaths.removeAll()
-        generateNewMosaicImage()
-        stickersContainer.subviews.forEach { view in
-            view.removeFromSuperview()
-        }
-        drawPaths.removeAll()
-        drawLine()
-        drawableObjects.removeAll()
-    }
-    
-    @objc private func doneButtonAction() {
-        self.isDrawingActive = false
-        self.penButtonInteractionEnabled = true
-        self.colorPickerView.pickerView.alpha = 0
-        self.colorPickerView.penButton.backgroundColor = UIColor(red: 0.10, green: 0.10, blue: 0.11, alpha: 1.00)
-    }
-    
-    @objc private func addTextButtonClick() {
-        showInputTextVC { [weak self] text, _, textColor, bgColor in
-            guard let self = self else { return }
-            self.addTextStickersView(text, textColor: textColor, bgColor: bgColor)
-        }
-    }
-    
-    @objc private func dismissKeyboard() {
-        self.view.endEditing(true)
-    }
-    
-    private func addImageStickerView(_ image: UIImage) {
-        let scale = mainScrollView.zoomScale
-        let size = ImageStickerView.calculateSize(image: image, width: view.frame.width)
-        let originFrame = getStickerOriginFrame(size)
-        
-        let imageSticker = ImageStickerView(image: image, originScale: 1 / scale, originAngle: 0, originFrame: originFrame)
-        stickersContainer.addSubview(imageSticker)
-        drawableObjects.append(Drawable(data: imageSticker))
-        self.undoButton.alpha = 1
-        self.clearAllButton.alpha = 1
-        imageSticker.frame = originFrame
-        view.layoutIfNeeded()
+}
 
-        configImageSticker(imageSticker)
-    }
-    
-    private func addTextStickersView(_ text: String, textColor: UIColor, font: UIFont? = nil, bgColor: UIColor) {
-        guard !text.isEmpty else { return }
-        let scale = mainScrollView.zoomScale
-        let size = TextStickerView.calculateSize(text: text, width: view.frame.width, font: font)
-        let originFrame = getStickerOriginFrame(size)
+extension BTImageEditController {
+    private func drawingActiveState() {
+        stickersContainer.subviews.forEach { view in
+            (view as? StickerViewAdditional)?.gesIsEnabled = false
+        }
         
-        let textSticker = TextStickerView(text: text, textColor: textColor, font: font, bgColor: bgColor, originScale: 1 / scale, originAngle: 0 , originFrame: originFrame)
-        stickersContainer.addSubview(textSticker)
-        drawableObjects.append(Drawable(data: textSticker))
-        self.undoButton.alpha = 1
-        self.clearAllButton.alpha = 1
-        textSticker.frame = originFrame
-        view.layoutIfNeeded()
+        stackView.alpha = 1
+        stackView.isUserInteractionEnabled = true
         
-        configTextSticker(textSticker)
-    }
-    
-    private func getStickerOriginFrame(_ size: CGSize) -> CGRect {
-        let scale = mainScrollView.zoomScale
+        backButton.alpha = 0
+        backButton.isUserInteractionEnabled = false
         
-        let xPosition = (mainScrollView.contentOffset.x - containerView.frame.minX) / scale
-        let yPosition = (mainScrollView.contentOffset.y - containerView.frame.minY) / scale
-        let width = view.frame.width / scale
-        let height = view.frame.height / scale
+        doneButton.alpha = 1
+        doneButton.isUserInteractionEnabled = true
         
-        let rect = containerView.convert(CGRect(x: xPosition, y: yPosition, width: width, height: height), to: stickersContainer)
-        let originFrame = CGRect(x: rect.minX + (rect.width - size.width) / 2, y: rect.minY + (rect.height - size.height) / 2, width: size.width, height: size.height)
-        return originFrame
-    }
-    
-    @objc private func undoButtonClick() {
-        if let lastObject = drawableObjects.last {
-            if let _ = lastObject.data as? UIView {
-                drawableObjects.removeLast()
-                if let lastStickerView = stickersContainer.subviews.last {
-                    lastStickerView.removeFromSuperview()
-                }
-            } else if let _ = lastObject.data as? DrawPath {
-                drawableObjects.removeLast()
-                drawPaths.removeLast()
-                drawLine()
-            } else if let _ = lastObject.data as? MosaicPath {
-                drawableObjects.removeLast()
-                mosaicPaths.removeLast()
-                generateNewMosaicImage()
+        UIView.animate(withDuration: 0.5) {
+            self.emojiButton.transform = .identity
+            self.emojiButton.alpha = 0
+            self.emojiButton.isUserInteractionEnabled = false
+            
+            self.textButton.transform = .identity
+            self.textButton.alpha = 0
+            self.textButton.isUserInteractionEnabled = false
+            
+            self.undoButton.transform = .identity
+            self.undoButton.isUserInteractionEnabled = false
+            
+            if !self.undoDrawPaths.isEmpty || !self.mosaicPaths.isEmpty {
+                self.undoButton.alpha = 1
+            } else {
+                self.undoButton.alpha = 0
             }
         }
+        penButtonInteractionEnabled = false
+        colorPickerView.penButton.backgroundColor = currentDrawColor
     }
-    
-    @objc private func emojiButtonClick() {
-        let viewController = EmojiPickerViewController()
-        viewController.delegate = self
-        viewController.sourceView = self.inputContainerView
-//        viewController.isDismissedAfterChoosing = true
-        viewController.arrowDirection = .down
-        viewController.customHeight = UIScreen.main.bounds.height / 2.25
-        present(viewController, animated: true)
-    }
-    
-    @objc private func dismissButtonAction() {
-        var textStickers: [(TextStickerState, Int)] = []
-        var imageStickers: [(ImageStickerState, Int)] = []
-        for (index, view) in stickersContainer.subviews.enumerated() {
-            if let textSticker = view as? TextStickerView, let _ = textSticker.label.text {
-                textStickers.append((textSticker.state, index))
-            } else if let imageSticker = view as? ImageStickerView {
-                imageStickers.append((imageSticker.state, index))
+}
+
+extension BTImageEditController {
+    private func drawingNotActiveState() {
+        stickersContainer.subviews.forEach { view in
+            (view as? StickerViewAdditional)?.gesIsEnabled = true
+        }
+        
+        stackView.alpha = 0
+        stackView.isUserInteractionEnabled = false
+        
+        backButton.alpha = 1
+        backButton.isUserInteractionEnabled = true
+        
+        doneButton.alpha = 0
+        doneButton.isUserInteractionEnabled = false
+        
+        UIView.animate(withDuration: 0.5) {
+            self.emojiButton.transform = self.emojiButton.transform.translatedBy(x: -self.emojiButton.frame.width, y: 0)
+            self.emojiButton.alpha = 1
+            self.emojiButton.isUserInteractionEnabled = true
+            
+            self.textButton.transform = self.textButton.transform.translatedBy(x: -self.textButton.frame.width, y: 0)
+            self.textButton.alpha = 1
+            self.textButton.isUserInteractionEnabled = true
+            
+            self.undoButton.transform = self.undoButton.transform.translatedBy(x: (-self.undoButton.frame.width) + (-self.textButton.frame.width) + (-self.emojiButton.frame.width) + 5, y: 0)
+            self.undoButton.isUserInteractionEnabled = true
+            
+            if !self.undoDrawPaths.isEmpty || !self.mosaicPaths.isEmpty {
+                self.undoButton.alpha = 1
+            } else {
+                self.undoButton.alpha = 0
             }
         }
-        var hasEdit = true
-        if drawPaths.isEmpty, mosaicPaths.isEmpty, imageStickers.isEmpty, textStickers.isEmpty {
-            hasEdit = false
-        }
+        penButtonInteractionEnabled = true
+        colorPickerView.penButton.backgroundColor = .white
+    }
+}
+
+extension BTImageEditController {
+    private func resetContainerViewFrame() {
+        mainScrollView.setZoomScale(1, animated: true)
+        imageView.image = editImage
         
-        var resourceImage = originalImage
-        if hasEdit {
-            resourceImage = buildImage()
-        }
-        dismiss(animated: true) {
-            self.editFinishBlock?(resourceImage!)
+        let editSize = CGRect(origin: .zero, size: originalImage.size).size
+        let scrollViewSize = mainScrollView.frame.size
+        let ratio = min(scrollViewSize.width / editSize.width, scrollViewSize.height / editSize.height)
+        let width = ratio * editSize.width * mainScrollView.zoomScale
+        let height = ratio * editSize.height * mainScrollView.zoomScale
+        
+        containerView.frame = CGRect(x: max(0, (scrollViewSize.width - width) / 2), y: max(0, (scrollViewSize.height - height) / 2), width: width, height: height)
+        mainScrollView.contentSize = containerView.frame.size
+        containerView.layer.mask = nil
+        
+        let scaleImageOrigin = CGPoint(x: -CGRect(origin: .zero, size: originalImage.size).origin.x * ratio, y: -CGRect(origin: .zero, size: originalImage.size).origin.y * ratio)
+        let scaleImageSize = CGSize(width: originalImage.size.width * ratio, height: originalImage.size.height * ratio)
+        
+        imageView.frame = CGRect(origin: scaleImageOrigin, size: scaleImageSize)
+        mosaicImageLayer?.frame = imageView.bounds
+        mosaicImageLayerMaskLayer?.frame = imageView.bounds
+        drawingImageView.frame = imageView.frame
+        stickersContainer.frame = imageView.frame
+    }
+}
+
+extension BTImageEditController {
+    private func setToolsAlphaToZero() {
+        self.backButton.alpha = 0
+        self.backButton.isUserInteractionEnabled = false
+        
+        self.textButton.alpha = 0
+        self.textButton.isUserInteractionEnabled = false
+        
+        self.emojiButton.alpha = 0
+        self.emojiButton.isUserInteractionEnabled = false
+        
+        self.colorPickerView.alpha = 0
+        self.colorPickerView.isUserInteractionEnabled = false
+        
+        self.inputContainerView.alpha = 0
+        self.inputContainerView.isUserInteractionEnabled = false
+        
+        if !self.drawableObjects.isEmpty {
+            self.undoButton.alpha = 0
+            self.undoButton.isUserInteractionEnabled = false
+            
+            self.clearAllButton.alpha = 0
+            self.clearAllButton.isUserInteractionEnabled = false
         }
     }
-    
-    @objc private func showInputTextVC(_ text: String? = nil, textColor: UIColor? = nil, font: UIFont? = nil, bgColor: UIColor? = nil, completion: @escaping (String, UIFont, UIColor, UIColor) -> Void) {
-        var bgImage: UIImage?
-        var rect = mainScrollView.convert(view.frame, to: containerView)
-        rect.origin.x += mainScrollView.contentOffset.x / mainScrollView.zoomScale
-        rect.origin.y += mainScrollView.contentOffset.y / mainScrollView.zoomScale
-        let scale = originalImage.size.width / imageView.frame.width
-        rect.origin.x *= scale
-        rect.origin.y *= scale
-        rect.size.width *= scale
-        rect.size.height *= scale
+}
+
+extension BTImageEditController {
+    private func setToolsAlphaToOne() {
+        self.backButton.alpha = 1
+        self.backButton.isUserInteractionEnabled = true
         
-        let inputTextVC = InputTextViewController(image: bgImage, text: text, textColor: textColor, bgColor: bgColor)
-        inputTextVC.delegate = self
+        self.textButton.alpha = 1
+        self.textButton.isUserInteractionEnabled = true
         
-        inputTextVC.endInput = { text, font, textColor, bgColor in
-            completion(text, font, textColor, bgColor)
-            UIView.animate(withDuration: 0.25) { [weak self] in
-                guard let self = self else { return }
-                self.inputContainerView.backgroundColor = .clear
-                self.inputContainerBottomConstraint.constant = -8
-                self.view.layoutIfNeeded()
-            }
+        self.emojiButton.alpha = 1
+        self.emojiButton.isUserInteractionEnabled = true
+        
+        self.colorPickerView.alpha = 1
+        self.colorPickerView.isUserInteractionEnabled = true
+        
+        if !self.drawableObjects.isEmpty {
+            self.undoButton.alpha = 1
+            self.undoButton.isUserInteractionEnabled = true
+            
+            self.clearAllButton.alpha = 1
+            self.clearAllButton.isUserInteractionEnabled = true
         }
-        
-        inputTextVC.modalPresentationStyle = .fullScreen
-        showDetailViewController(inputTextVC, sender: nil)
     }
-    
-    private func buildImage() -> UIImage {
-        let imageSize = originalImage.size
+}
+
+extension BTImageEditController {
+    private func drawLine() {
+        let originalRatio = min(mainScrollView.frame.width / originalImage.size.width, mainScrollView.frame.height / originalImage.size.height)
+        let ratio = min(mainScrollView.frame.width / CGRect(origin: .zero, size: originalImage.size).width, mainScrollView.frame.height / CGRect(origin: .zero, size: originalImage.size).height)
+        let scale = ratio / originalRatio
+        var size = drawingImageView.frame.size
+        size.width /= scale
+        size.height /= scale
         
-        UIGraphicsBeginImageContextWithOptions(editImage.size, false, editImage.scale)
-        editImage.draw(at: .zero)
-        
-        drawingImageView.image?.draw(in: CGRect(origin: .zero, size: imageSize))
-        
-        if !stickersContainer.subviews.isEmpty, let context = UIGraphicsGetCurrentContext() {
-            let scale = self.originalImage.size.width / stickersContainer.frame.width
-            stickersContainer.subviews.forEach { view in
-                (view as? StickerViewAdditional)?.resetState()
-            }
-            context.concatenate(CGAffineTransform(scaleX: scale, y: scale))
-            stickersContainer.layer.render(in: context)
-            context.concatenate(CGAffineTransform(scaleX: 1 / scale, y: 1 / scale))
+        var toImageScale = 600 / size.width
+        if editImage.size.width / editImage.size.height > 1 {
+            toImageScale = 600 / size.height
         }
+        size.width *= toImageScale
+        size.height *= toImageScale
         
-        let image = UIGraphicsGetImageFromCurrentImageContext()
+        UIGraphicsBeginImageContextWithOptions(size, false, editImage.scale)
+        let context = UIGraphicsGetCurrentContext()
+        
+        context?.setAllowsAntialiasing(true)
+        context?.setShouldAntialias(true)
+        for path in drawPaths {
+            path.drawPath()
+        }
+        drawingImageView.image = UIGraphicsGetImageFromCurrentImageContext()
         UIGraphicsEndImageContext()
-        guard let cgiImage = image?.cgImage else {
-            return editImage
+    }
+}
+
+extension BTImageEditController {
+    @discardableResult
+    private func generateNewMosaicImage(inputImage: UIImage? = nil, inputMosaicImage: UIImage? = nil) -> UIImage? {
+        let renderRect = CGRect(origin: .zero, size: originalImage.size)
+        
+        UIGraphicsBeginImageContextWithOptions(originalImage.size, false, originalImage.scale)
+        if inputImage != nil {
+            inputImage?.draw(in: renderRect)
+        } else {
+            var drawImage: UIImage?
+            drawImage = originalImage
+            drawImage?.draw(at: .zero)
+            drawImage?.draw(in: renderRect)
+        }
+        let context = UIGraphicsGetCurrentContext()
+        
+        mosaicPaths.forEach { path in
+            context?.move(to: path.startPoint)
+            path.linePoints.forEach { point in
+                context?.addLine(to: point)
+            }
+            context?.setLineWidth(path.path.lineWidth / path.ratio)
+            context?.setLineCap(.round)
+            context?.setLineJoin(.round)
+            context?.setBlendMode(.clear)
+            context?.strokePath()
         }
         
-        return UIImage(cgImage: cgiImage, scale: editImage.scale, orientation: .up)
+        var midImage = UIGraphicsGetImageFromCurrentImageContext()
+        UIGraphicsEndImageContext()
+        guard let midCgImage = midImage?.cgImage else {
+            return nil
+        }
+        
+        midImage = UIImage(cgImage: midCgImage, scale: editImage.scale, orientation: .up)
+        
+        UIGraphicsBeginImageContextWithOptions(originalImage.size, false, originalImage.scale)
+        originalImage.draw(in: renderRect)
+        (inputMosaicImage ?? mosaicImage)?.draw(in: renderRect)
+        midImage?.draw(at: .zero)
+        
+        let currentImage = UIGraphicsGetImageFromCurrentImageContext()
+        UIGraphicsEndImageContext()
+        guard let cgiImage = currentImage?.cgImage else {
+            return nil
+        }
+        let image = UIImage(cgImage: cgiImage, scale: editImage.scale, orientation: .up)
+        
+        if inputImage != nil {
+            return image
+        }
+        
+        editImage = image
+        imageView.image = image
+        mosaicImageLayerMaskLayer?.path = nil
+        
+        return image
     }
-    
+}
+
+extension BTImageEditController {
     @objc private func drawAction(_ pan: UIPanGestureRecognizer) {
         guard isDrawingActive else { return }
         if mosaicButton.isSelected {
@@ -904,180 +950,248 @@ public final class BTImageEditController: UIViewController {
             }
         }
     }
-    
-    @discardableResult
-    private func generateNewMosaicImage(inputImage: UIImage? = nil, inputMosaicImage: UIImage? = nil) -> UIImage? {
-        let renderRect = CGRect(origin: .zero, size: originalImage.size)
+}
+
+extension BTImageEditController {
+    private func buildImage() -> UIImage {
+        let imageSize = originalImage.size
         
-        UIGraphicsBeginImageContextWithOptions(originalImage.size, false, originalImage.scale)
-        if inputImage != nil {
-            inputImage?.draw(in: renderRect)
-        } else {
-            var drawImage: UIImage?
-            drawImage = originalImage
-            drawImage?.draw(at: .zero)
-            drawImage?.draw(in: renderRect)
-        }
-        let context = UIGraphicsGetCurrentContext()
+        UIGraphicsBeginImageContextWithOptions(editImage.size, false, editImage.scale)
+        editImage.draw(at: .zero)
         
-        mosaicPaths.forEach { path in
-            context?.move(to: path.startPoint)
-            path.linePoints.forEach { point in
-                context?.addLine(to: point)
+        drawingImageView.image?.draw(in: CGRect(origin: .zero, size: imageSize))
+        
+        if !stickersContainer.subviews.isEmpty, let context = UIGraphicsGetCurrentContext() {
+            let scale = self.originalImage.size.width / stickersContainer.frame.width
+            stickersContainer.subviews.forEach { view in
+                (view as? StickerViewAdditional)?.resetState()
             }
-            context?.setLineWidth(path.path.lineWidth / path.ratio)
-            context?.setLineCap(.round)
-            context?.setLineJoin(.round)
-            context?.setBlendMode(.clear)
-            context?.strokePath()
+            context.concatenate(CGAffineTransform(scaleX: scale, y: scale))
+            stickersContainer.layer.render(in: context)
+            context.concatenate(CGAffineTransform(scaleX: 1 / scale, y: 1 / scale))
         }
         
-        var midImage = UIGraphicsGetImageFromCurrentImageContext()
+        let image = UIGraphicsGetImageFromCurrentImageContext()
         UIGraphicsEndImageContext()
-        guard let midCgImage = midImage?.cgImage else {
-            return nil
+        guard let cgiImage = image?.cgImage else {
+            return editImage
         }
         
-        midImage = UIImage(cgImage: midCgImage, scale: editImage.scale, orientation: .up)
-        
-        UIGraphicsBeginImageContextWithOptions(originalImage.size, false, originalImage.scale)
-        originalImage.draw(in: renderRect)
-        (inputMosaicImage ?? mosaicImage)?.draw(in: renderRect)
-        midImage?.draw(at: .zero)
-        
-        let currentImage = UIGraphicsGetImageFromCurrentImageContext()
-        UIGraphicsEndImageContext()
-        guard let cgiImage = currentImage?.cgImage else {
-            return nil
-        }
-        let image = UIImage(cgImage: cgiImage, scale: editImage.scale, orientation: .up)
-        
-        if inputImage != nil {
-            return image
-        }
-        
-        editImage = image
-        imageView.image = image
-        mosaicImageLayerMaskLayer?.path = nil
-        
-        return image
+        return UIImage(cgImage: cgiImage, scale: editImage.scale, orientation: .up)
     }
-    
-    private func drawLine() {
-        let originalRatio = min(mainScrollView.frame.width / originalImage.size.width, mainScrollView.frame.height / originalImage.size.height)
-        let ratio = min(mainScrollView.frame.width / CGRect(origin: .zero, size: originalImage.size).width, mainScrollView.frame.height / CGRect(origin: .zero, size: originalImage.size).height)
-        let scale = ratio / originalRatio
-        var size = drawingImageView.frame.size
-        size.width /= scale
-        size.height /= scale
-        
-        var toImageScale = 600 / size.width
-        if editImage.size.width / editImage.size.height > 1 {
-            toImageScale = 600 / size.height
-        }
-        size.width *= toImageScale
-        size.height *= toImageScale
-        
-        UIGraphicsBeginImageContextWithOptions(size, false, editImage.scale)
-        let context = UIGraphicsGetCurrentContext()
-        
-        context?.setAllowsAntialiasing(true)
-        context?.setShouldAntialias(true)
-        for path in drawPaths {
-            path.drawPath()
-        }
-        drawingImageView.image = UIGraphicsGetImageFromCurrentImageContext()
-        UIGraphicsEndImageContext()
-    }
-    
-    public override func viewDidLayoutSubviews() {
-        super.viewDidLayoutSubviews()
-        
-        mainScrollView.frame = view.bounds
-        resetContainerViewFrame()
-                
-        trashView.frame = CGRect(x: (view.frame.width - trashViewSize.width) / 2, y: view.frame.height - trashViewSize.height - 40, width: trashViewSize.width, height: trashViewSize.height)
-        trashImageView.frame = CGRect(x: (trashViewSize.width - 25) / 2, y: 15, width: 25, height: 25)
-    }
-    
-    public override func viewDidAppear(_ animated: Bool) {
-        super.viewDidAppear(true)
-    }
-    
-    private func setToolView(show: Bool) {
-        UIView.animate(withDuration: 0.25) {
-            show ? self.setToolsAlphaToOne() : self.setToolsAlphaToZero()
-        }
-    }
-    
-    private func setToolsAlphaToOne() {
-        self.backButton.alpha = 1
-        self.backButton.isUserInteractionEnabled = true
-        
-        self.textButton.alpha = 1
-        self.textButton.isUserInteractionEnabled = true
-        
-        self.emojiButton.alpha = 1
-        self.emojiButton.isUserInteractionEnabled = true
-        
-        self.colorPickerView.alpha = 1
-        self.colorPickerView.isUserInteractionEnabled = true
-        
-        if !self.drawableObjects.isEmpty {
-            self.undoButton.alpha = 1
-            self.undoButton.isUserInteractionEnabled = true
-            
-            self.clearAllButton.alpha = 1
-            self.clearAllButton.isUserInteractionEnabled = true
-        }
-    }
-    
-    private func setToolsAlphaToZero() {
-        self.backButton.alpha = 0
-        self.backButton.isUserInteractionEnabled = false
-        
-        self.textButton.alpha = 0
-        self.textButton.isUserInteractionEnabled = false
-        
-        self.emojiButton.alpha = 0
-        self.emojiButton.isUserInteractionEnabled = false
-        
-        self.colorPickerView.alpha = 0
-        self.colorPickerView.isUserInteractionEnabled = false
-        
-        self.inputContainerView.alpha = 0
-        self.inputContainerView.isUserInteractionEnabled = false
-        
-        if !self.drawableObjects.isEmpty {
-            self.undoButton.alpha = 0
-            self.undoButton.isUserInteractionEnabled = false
-            
-            self.clearAllButton.alpha = 0
-            self.clearAllButton.isUserInteractionEnabled = false
-        }
-    }
-    
-    private func resetContainerViewFrame() {
-           mainScrollView.setZoomScale(1, animated: true)
-           imageView.image = editImage
+}
 
-           let editSize = CGRect(origin: .zero, size: originalImage.size).size
-           let scrollViewSize = mainScrollView.frame.size
-           let ratio = min(scrollViewSize.width / editSize.width, scrollViewSize.height / editSize.height)
-           let width = ratio * editSize.width * mainScrollView.zoomScale
-           let height = ratio * editSize.height * mainScrollView.zoomScale
-           containerView.frame = CGRect(x: max(0, (scrollViewSize.width - width) / 2), y: max(0, (scrollViewSize.height - height) / 2), width: width, height: height)
-           mainScrollView.contentSize = containerView.frame.size
+extension BTImageEditController {
+    @objc private func showInputTextVC(_ text: String? = nil, textColor: UIColor? = nil, font: UIFont? = nil, bgColor: UIColor? = nil, completion: @escaping (String, UIFont, UIColor, UIColor) -> Void) {
+        var bgImage: UIImage?
+        var rect = mainScrollView.convert(view.frame, to: containerView)
+        rect.origin.x += mainScrollView.contentOffset.x / mainScrollView.zoomScale
+        rect.origin.y += mainScrollView.contentOffset.y / mainScrollView.zoomScale
+        let scale = originalImage.size.width / imageView.frame.width
+        rect.origin.x *= scale
+        rect.origin.y *= scale
+        rect.size.width *= scale
+        rect.size.height *= scale
+        
+        let inputTextVC = InputTextViewController(image: bgImage, text: text, textColor: textColor, bgColor: bgColor)
+        inputTextVC.delegate = self
+        
+        inputTextVC.endInput = { text, font, textColor, bgColor in
+            completion(text, font, textColor, bgColor)
+            UIView.animate(withDuration: 0.25) { [weak self] in
+                guard let self = self else { return }
+                self.inputContainerView.backgroundColor = .clear
+                self.inputContainerBottomConstraint.constant = -8
+                self.view.layoutIfNeeded()
+            }
+        }
+        
+        inputTextVC.modalPresentationStyle = .fullScreen
+        showDetailViewController(inputTextVC, sender: nil)
+    }
+}
 
-           containerView.layer.mask = nil
+extension BTImageEditController {
+    @objc private func dismissButtonAction() {
+        var textStickers: [(TextStickerState, Int)] = []
+        var imageStickers: [(ImageStickerState, Int)] = []
+        for (index, view) in stickersContainer.subviews.enumerated() {
+            if let textSticker = view as? TextStickerView, let _ = textSticker.label.text {
+                textStickers.append((textSticker.state, index))
+            } else if let imageSticker = view as? ImageStickerView {
+                imageStickers.append((imageSticker.state, index))
+            }
+        }
+        var hasEdit = true
+        if drawPaths.isEmpty, mosaicPaths.isEmpty, imageStickers.isEmpty, textStickers.isEmpty {
+            hasEdit = false
+        }
+        
+        var resourceImage = originalImage
+        if hasEdit {
+            resourceImage = buildImage()
+        }
+        dismiss(animated: true) {
+            self.editFinishBlock?(resourceImage!)
+        }
+    }
+}
 
-           let scaleImageOrigin = CGPoint(x: -CGRect(origin: .zero, size: originalImage.size).origin.x * ratio, y: -CGRect(origin: .zero, size: originalImage.size).origin.y * ratio)
-           let scaleImageSize = CGSize(width: originalImage.size.width * ratio, height: originalImage.size.height * ratio)
-           imageView.frame = CGRect(origin: scaleImageOrigin, size: scaleImageSize)
-           mosaicImageLayer?.frame = imageView.bounds
-           mosaicImageLayerMaskLayer?.frame = imageView.bounds
-           drawingImageView.frame = imageView.frame
-           stickersContainer.frame = imageView.frame
+extension BTImageEditController {
+    @objc private func emojiButtonClick() {
+        let viewController = EmojiPickerViewController()
+        viewController.delegate = self
+        viewController.sourceView = self.inputContainerView
+        viewController.arrowDirection = .down
+        viewController.customHeight = UIScreen.main.bounds.height / 2.25
+        present(viewController, animated: true)
+    }
+}
+
+extension BTImageEditController {
+    @objc private func undoButtonClick() {
+        if let lastObject = drawableObjects.last {
+            if let _ = lastObject.data as? UIView {
+                drawableObjects.removeLast()
+                if let lastStickerView = stickersContainer.subviews.last {
+                    lastStickerView.removeFromSuperview()
+                }
+            } else if let _ = lastObject.data as? DrawPath {
+                drawableObjects.removeLast()
+                drawPaths.removeLast()
+                drawLine()
+            } else if let _ = lastObject.data as? MosaicPath {
+                drawableObjects.removeLast()
+                mosaicPaths.removeLast()
+                generateNewMosaicImage()
+            }
+        }
+    }
+}
+
+extension BTImageEditController {
+    private func getStickerOriginFrame(_ size: CGSize) -> CGRect {
+        let scale = mainScrollView.zoomScale
+        let xPosition = (mainScrollView.contentOffset.x - containerView.frame.minX) / scale
+        let yPosition = (mainScrollView.contentOffset.y - containerView.frame.minY) / scale
+        let width = view.frame.width / scale
+        let height = view.frame.height / scale
+        
+        let rect = containerView.convert(CGRect(x: xPosition, y: yPosition, width: width, height: height), to: stickersContainer)
+        let originFrame = CGRect(x: rect.minX + (rect.width - size.width) / 2, y: rect.minY + (rect.height - size.height) / 2, width: size.width, height: size.height)
+        return originFrame
+    }
+}
+
+extension BTImageEditController {
+    private func addTextStickersView(_ text: String, textColor: UIColor, font: UIFont? = nil, bgColor: UIColor) {
+        guard !text.isEmpty else { return }
+        let scale = mainScrollView.zoomScale
+        let size = TextStickerView.calculateSize(text: text, width: view.frame.width, font: font)
+        let originFrame = getStickerOriginFrame(size)
+        
+        let textSticker = TextStickerView(text: text, textColor: textColor, font: font, bgColor: bgColor, originScale: 1 / scale, originAngle: 0 , originFrame: originFrame)
+        stickersContainer.addSubview(textSticker)
+        drawableObjects.append(Drawable(data: textSticker))
+        self.undoButton.alpha = 1
+        self.clearAllButton.alpha = 1
+        textSticker.frame = originFrame
+        view.layoutIfNeeded()
+        
+        configTextSticker(textSticker)
+    }
+}
+
+extension BTImageEditController {
+    private func addImageStickerView(_ image: UIImage) {
+        let scale = mainScrollView.zoomScale
+        let size = ImageStickerView.calculateSize(image: image, width: view.frame.width)
+        let originFrame = getStickerOriginFrame(size)
+        
+        let imageSticker = ImageStickerView(image: image, originScale: 1 / scale, originAngle: 0, originFrame: originFrame)
+        stickersContainer.addSubview(imageSticker)
+        drawableObjects.append(Drawable(data: imageSticker))
+        self.undoButton.alpha = 1
+        self.clearAllButton.alpha = 1
+        imageSticker.frame = originFrame
+        view.layoutIfNeeded()
+        
+        configImageSticker(imageSticker)
+    }
+}
+
+extension BTImageEditController {
+    @objc private func dismissKeyboard() {
+        self.view.endEditing(true)
+    }
+}
+
+extension BTImageEditController {
+    @objc private func addTextButtonClick() {
+        showInputTextVC { [weak self] text, _, textColor, bgColor in
+            guard let self = self else { return }
+            self.addTextStickersView(text, textColor: textColor, bgColor: bgColor)
+        }
+    }
+}
+
+extension BTImageEditController {
+    @objc private func doneButtonAction() {
+        self.isDrawingActive = false
+        self.penButtonInteractionEnabled = true
+        self.colorPickerView.pickerView.alpha = 0
+        self.colorPickerView.penButton.backgroundColor = UIColor(red: 0.10, green: 0.10, blue: 0.11, alpha: 1.00)
+    }
+}
+
+extension BTImageEditController {
+    @objc private func clearAllButtonAction() {
+        mosaicPaths.removeAll()
+        generateNewMosaicImage()
+        stickersContainer.subviews.forEach { view in
+            view.removeFromSuperview()
+        }
+        drawPaths.removeAll()
+        drawLine()
+        drawableObjects.removeAll()
+    }
+}
+
+extension BTImageEditController {
+    @objc private func setEditTool() {
+        self.selectedTool = .mosaic
+    }
+}
+
+extension BTImageEditController {
+    @objc private func thicknessButtonPressed(_ sender: UIButton) {
+        if sender.isSelected { return }
+        
+        let buttons: [UIButton] = [normalThickness, halfThickness, veryThickness, mosaicButton]
+        UIView.animate(withDuration: 0.4) {
+            for button in buttons {
+                button.isSelected = button == sender
+                button.layer.backgroundColor = button.isSelected ? UIColor(white: 0.7, alpha: 0.5).cgColor : UIColor.clear.cgColor
+            }
+        }
+    }
+}
+
+extension BTImageEditController {
+    private func configImageSticker(_ imageSticker: ImageStickerView) {
+        imageSticker.delegate = self
+        mainScrollView.pinchGestureRecognizer?.require(toFail: imageSticker.pinchGesture)
+        mainScrollView.panGestureRecognizer.require(toFail: imageSticker.panGesture)
+        panGesture.require(toFail: imageSticker.panGesture)
+    }
+}
+
+extension BTImageEditController {
+    private func configTextSticker(_ textSticker: TextStickerView) {
+        textSticker.delegate = self
+        mainScrollView.pinchGestureRecognizer?.require(toFail: textSticker.pinchGesture)
+        mainScrollView.panGestureRecognizer.require(toFail: textSticker.panGesture)
+        panGesture.require(toFail: textSticker.panGesture)
     }
 }
 
@@ -1152,8 +1266,8 @@ extension BTImageEditController: StickerViewDelegate {
         }
     }
     
-    func stickerOnOperation(_ sticker: UIView, panGes: UIPanGestureRecognizer) {
-        let point = panGes.location(in: view)
+    func stickerOnOperation(_ sticker: UIView, panGesture: UIPanGestureRecognizer) {
+        let point = panGesture.location(in: view)
         if trashView.frame.contains(point) {
             trashView.backgroundColor = .red
             trashImageView.isHighlighted = true
@@ -1175,12 +1289,12 @@ extension BTImageEditController: StickerViewDelegate {
         }
     }
     
-    func stickerEndOperation(_ sticker: UIView, panGes: UIPanGestureRecognizer) {
+    func stickerEndOperation(_ sticker: UIView, panGesture: UIPanGestureRecognizer) {
         setToolView(show: true)
         trashView.layer.removeAllAnimations()
         trashView.isHidden = true
         
-        let point = panGes.location(in: view)
+        let point = panGesture.location(in: view)
         if trashView.frame.contains(point) {
             (sticker as? StickerViewAdditional)?.moveToTrashView()
             self.drawableObjects.removeLast()

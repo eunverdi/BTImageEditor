@@ -7,7 +7,7 @@
 
 import UIKit.UIImage
 
-public class ImageStickerState {
+class ImageStickerState {
     let image: UIImage
     let originScale: CGFloat
     let originAngle: CGFloat

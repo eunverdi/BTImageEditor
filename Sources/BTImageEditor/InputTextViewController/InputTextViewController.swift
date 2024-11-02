@@ -12,16 +12,15 @@ protocol TextViewControllerProtocol: AnyObject {
     func cancelButtonPressed()
 }
 
-class InputTextViewController: UIViewController {
+final class InputTextViewController: UIViewController {
     
-    let image: UIImage?
-    var text: String
-    var cancelButton: UIButton!
-    var doneButton: UIButton!
-    var textView: UITextView!
-    var currentTextColor: UIColor = .white
-    
-    var collectionView: UICollectionView!
+    private let image: UIImage?
+    private var text: String
+    private var cancelButton: UIButton!
+    private var doneButton: UIButton!
+    private var textView: UITextView!
+    private var currentTextColor: UIColor = .white
+    private var collectionView: UICollectionView!
     
     /// text, textColor, bgColor
     var endInput: ((String, UIFont, UIColor, UIColor) -> Void)?
@@ -43,7 +42,7 @@ class InputTextViewController: UIViewController {
     
     @available(*, unavailable)
     required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
+        fatalError("BTImageEditor: init(coder:) has not been implemented")
     }
     
     override func viewDidLoad() {
@@ -77,44 +76,10 @@ class InputTextViewController: UIViewController {
     }
     
     func setupUI() {
-        view.backgroundColor = .black
-        
-        cancelButton = UIButton(type: .custom)
-        cancelButton.setTitle("Cancel", for: .normal)
-        cancelButton.addTarget(self, action: #selector(cancelButtonClick), for: .touchUpInside)
-        view.addSubview(cancelButton)
-        
-        doneButton = UIButton(type: .custom)
-        doneButton.setTitle("Done", for: .normal)
-        doneButton.addTarget(self, action: #selector(doneButtonClick), for: .touchUpInside)
-        view.addSubview(doneButton)
-        
-        textView = UITextView(frame: .zero)
-        textView.keyboardAppearance = .dark
-        textView.returnKeyType = .done
-        textView.indicatorStyle = .white
-        textView.delegate = self
-        textView.backgroundColor = .clear
-        textView.tintColor = .white
-        textView.textColor = currentTextColor
-        textView.text = text
-        textView.font = UIFont.boldSystemFont(ofSize: TextStickerView.fontSize)
-        view.addSubview(textView)
-        
-        let layout = UICollectionViewFlowLayout()
-        layout.itemSize = CGSize(width: 30, height: 30)
-        layout.minimumLineSpacing = 15
-        layout.minimumInteritemSpacing = 15
-        layout.scrollDirection = .horizontal
-        layout.sectionInset = UIEdgeInsets(top: 10, left: 30, bottom: 10, right: 30)
-        collectionView = UICollectionView(frame: CGRect(x: 0, y: view.frame.height - 50, width: view.frame.width, height: 50), collectionViewLayout: layout)
-        collectionView.backgroundColor = .clear
-        collectionView.delegate = self
-        collectionView.dataSource = self
-        collectionView.showsHorizontalScrollIndicator = false
-        view.addSubview(collectionView)
-        
-        collectionView.register(DrawColorCell.self, forCellWithReuseIdentifier: DrawColorCell.identifier)
+        setupView()
+        setupButtons()
+        setupTextView()
+        setupCollectionView()
     }
     
     @objc func cancelButtonClick() {
@@ -136,6 +101,56 @@ class InputTextViewController: UIViewController {
         UIView.animate(withDuration: max(duration, 0.25)) {
             self.collectionView.frame = CGRect(x: 0, y: self.view.frame.height - keyboardHeight - 50, width: self.view.frame.width, height: 50)
         }
+    }
+}
+
+extension InputTextViewController {
+    private func setupCollectionView() {
+        let layout = UICollectionViewFlowLayout()
+        layout.itemSize = CGSize(width: 30, height: 30)
+        layout.minimumLineSpacing = 15
+        layout.minimumInteritemSpacing = 15
+        layout.scrollDirection = .horizontal
+        layout.sectionInset = UIEdgeInsets(top: 10, left: 30, bottom: 10, right: 30)
+        
+        collectionView = UICollectionView(frame: CGRect(x: 0, y: view.frame.height - 50, width: view.frame.width, height: 50), collectionViewLayout: layout)
+        collectionView.backgroundColor = .clear
+        collectionView.delegate = self
+        collectionView.dataSource = self
+        collectionView.showsHorizontalScrollIndicator = false
+        view.addSubview(collectionView)
+        
+        collectionView.register(DrawColorCell.self, forCellWithReuseIdentifier: DrawColorCell.identifier)
+    }
+    
+    private func setupTextView() {
+        textView = UITextView(frame: .zero)
+        textView.keyboardAppearance = .dark
+        textView.returnKeyType = .done
+        textView.indicatorStyle = .white
+        textView.delegate = self
+        textView.backgroundColor = .clear
+        textView.tintColor = .white
+        textView.textColor = currentTextColor
+        textView.text = text
+        textView.font = UIFont.boldSystemFont(ofSize: TextStickerView.fontSize)
+        view.addSubview(textView)
+    }
+    
+    private func setupButtons() {
+        cancelButton = UIButton(type: .custom)
+        cancelButton.setTitle("Cancel", for: .normal)
+        cancelButton.addTarget(self, action: #selector(cancelButtonClick), for: .touchUpInside)
+        view.addSubview(cancelButton)
+        
+        doneButton = UIButton(type: .custom)
+        doneButton.setTitle("Done", for: .normal)
+        doneButton.addTarget(self, action: #selector(doneButtonClick), for: .touchUpInside)
+        view.addSubview(doneButton)
+    }
+    
+    private func setupView() {
+        view.backgroundColor = .black
     }
 }
 

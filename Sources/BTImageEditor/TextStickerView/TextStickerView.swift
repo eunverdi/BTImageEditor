@@ -7,7 +7,7 @@
 
 import UIKit
 
-class TextStickerView: BaseStickerView<TextStickerState> {
+final class TextStickerView: BaseStickerView<TextStickerState> {
     static let fontSize: CGFloat = 30
     
     override var borderView: UIView {
@@ -20,7 +20,7 @@ class TextStickerView: BaseStickerView<TextStickerState> {
         return view
     }()
     
-    lazy var label: UILabel = {
+    private(set) lazy var label: UILabel = {
         let label = UILabel()
         label.text = text
         label.font = textFont ?? UIFont.boldSystemFont(ofSize: TextStickerView.fontSize)
@@ -55,7 +55,6 @@ class TextStickerView: BaseStickerView<TextStickerState> {
         }
     }
     
-    // Convert all states to model.
     override var state: TextStickerState {
         return TextStickerState(
             text: text,
@@ -72,7 +71,7 @@ class TextStickerView: BaseStickerView<TextStickerState> {
     }
     
     deinit {
-        print("TextStickerView deinit")
+        print("BTImageEditor: TextStickerView deinit")
     }
     
     convenience init(from state: TextStickerState) {
@@ -124,7 +123,7 @@ class TextStickerView: BaseStickerView<TextStickerState> {
     
     @available(*, unavailable)
     required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
+        fatalError("BTImageEditor: init(coder:) has not been implemented")
     }
     
     override func setupUIFrameWhenFirstLayout() {
@@ -139,15 +138,11 @@ class TextStickerView: BaseStickerView<TextStickerState> {
     }
     
     func changeSize(to newSize: CGSize) {
-        // Revert zoom scale.
         transform = transform.scaledBy(x: 1 / originScale, y: 1 / originScale)
-        // Revert ges scale.
         transform = transform.scaledBy(x: 1 / gesScale, y: 1 / gesScale)
-        // Revert ges rotation.
         transform = transform.rotated(by: -gesRotation)
         transform = transform.rotated(by: -originAngle / 180 * .pi)
         
-        // Recalculate current frame.
         let center = CGPoint(x: self.frame.midX, y: self.frame.midY)
         var frame = self.frame
         frame.origin.x = center.x - newSize.width / 2
@@ -165,16 +160,13 @@ class TextStickerView: BaseStickerView<TextStickerState> {
         borderView.frame = bounds.insetBy(dx: StickerLayout.edgeInset, dy: StickerLayout.edgeInset)
         label.frame = borderView.bounds.insetBy(dx: StickerLayout.edgeInset, dy: StickerLayout.edgeInset)
         
-        // Readd zoom scale.
         transform = transform.scaledBy(x: originScale, y: originScale)
-        // Readd ges scale.
         transform = transform.scaledBy(x: gesScale, y: gesScale)
-        // Readd ges rotation.
         transform = transform.rotated(by: gesRotation)
         transform = transform.rotated(by: originAngle / 180 * .pi)
     }
     
-    class func calculateSize(text: String, width: CGFloat, font: UIFont? = nil) -> CGSize {
+    static func calculateSize(text: String, width: CGFloat, font: UIFont? = nil) -> CGSize {
         let diff = StickerLayout.edgeInset * 2
         let size = text.boundingRect(font: font ?? UIFont.boldSystemFont(ofSize:TextStickerView.fontSize), limitSize: CGSize(width: width - diff, height: CGFloat.greatestFiniteMagnitude))
         return CGSize(width: size.width + diff * 2, height: size.height + diff * 2)

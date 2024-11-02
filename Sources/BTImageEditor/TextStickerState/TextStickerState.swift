@@ -9,7 +9,7 @@
 import UIKit.UIColor
 import UIKit.UIFont
 
-public class TextStickerState {
+final class TextStickerState {
     let text: String
     let textColor: UIColor
     let bgColor: UIColor

@@ -7,8 +7,8 @@
 
 import UIKit
 
-class ImageStickerView: BaseStickerView<ImageStickerState> {
-    let image: UIImage
+final class ImageStickerView: BaseStickerView<ImageStickerState> {
+    private let image: UIImage
     
     private lazy var imageView: UIImageView = {
         let view = UIImageView(image: image)
@@ -31,7 +31,7 @@ class ImageStickerView: BaseStickerView<ImageStickerState> {
     }
     
     deinit {
-        print("ImageStickerView deinit")
+        print("BTImageEditor: ImageStickerView deinit")
     }
     
     convenience init(from state: ImageStickerState) {
@@ -73,14 +73,14 @@ class ImageStickerView: BaseStickerView<ImageStickerState> {
     
     @available(*, unavailable)
     required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
+        fatalError("BTImageEditor: init(coder:) has not been implemented")
     }
     
     override func setupUIFrameWhenFirstLayout() {
         imageView.frame = bounds.insetBy(dx: StickerLayout.edgeInset, dy: StickerLayout.edgeInset)
     }
     
-    class func calculateSize(image: UIImage, width: CGFloat) -> CGSize {
+    static func calculateSize(image: UIImage, width: CGFloat) -> CGSize {
         let maxSide = width / 2
         let minSide: CGFloat = 100
         let whRatio = image.size.width / image.size.height
