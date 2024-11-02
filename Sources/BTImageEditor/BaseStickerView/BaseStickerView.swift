@@ -8,6 +8,7 @@
 import UIKit
 import AVKit
 
+@MainActor
 protocol StickerViewDelegate: AnyObject {
     func stickerBeginOperation(_ sticker: UIView)
     func stickerOnOperation(_ sticker: UIView, panGes: UIPanGestureRecognizer)

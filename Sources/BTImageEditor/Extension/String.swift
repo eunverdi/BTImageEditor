@@ -18,4 +18,16 @@ extension String {
         
         return CGSize(width: ceil(size.width), height: ceil(size.height))
     }
+    
+    func image() -> UIImage? {
+        let size = CGSize(width: 35, height: 35)
+        let rect = CGRect(origin: .zero, size: size)
+        UIGraphicsBeginImageContextWithOptions(rect.size, false, 10.0)
+        UIColor.clear.set()
+        UIRectFill(rect)
+        (self as NSString).draw(in: rect, withAttributes: [NSAttributedString.Key.font: UIFont.systemFont(ofSize: 30)])
+        let image = UIGraphicsGetImageFromCurrentImageContext()
+        UIGraphicsEndImageContext()
+        return image
+    }
 }

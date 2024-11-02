@@ -5,17 +5,25 @@ import PackageDescription
 
 let package = Package(
     name: "BTImageEditor",
+    platforms: [
+        .iOS(.v16)
+    ],
     products: [
-        // Products define the executables and libraries a package produces, making them visible to other packages.
         .library(
             name: "BTImageEditor",
             targets: ["BTImageEditor"])
     ],
+    dependencies: [
+        .package(url: "https://github.com/htmlprogrammist/EmojiPicker", .upToNextMajor(from: "3.0.0"))
+    ],
     targets: [
-        // Targets are the basic building blocks of a package, defining a module or a test suite.
-        // Targets can depend on other targets in this package and products from dependencies.
         .target(
-            name: "BTImageEditor"),
-
+            name: "BTImageEditor",
+            dependencies: [
+                .product(name: "EmojiPicker", package: "EmojiPicker")
+            ], 
+            path: "Sources"
+        )
     ]
 )
+

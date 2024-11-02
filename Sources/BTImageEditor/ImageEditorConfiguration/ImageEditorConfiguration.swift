@@ -5,13 +5,6 @@
 //  Created by Ensar Batuhan Ünverdi on 2.11.2024.
 //
 
-//
-//  ImageEditorConfiguration.swift
-//  BTImageEditor
-//
-//  Created by Ensar Batuhan Ünverdi on 2.11.2024.
-//
-
 import UIKit
 
 public class ImageEditorConfiguration {
